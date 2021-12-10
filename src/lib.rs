@@ -12,4 +12,9 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 extern "C" {}
 
 #[wasm_bindgen]
-pub fn hello() {}
+pub fn fib(n: u32) -> u32 {
+    if n == 1 || n == 2 {
+        return 1;
+    }
+    return fib(n - 1) + fib(n - 2);
+}
