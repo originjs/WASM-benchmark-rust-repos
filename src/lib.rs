@@ -12,4 +12,10 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 extern "C" {}
 
 #[wasm_bindgen]
-pub fn hello() {}
+pub fn multiply_double(a: f64, b: f64, n: u32) -> f64 {
+    let mut c = 1.0;
+    for _ in 0..n {
+        c = c * a * b;
+    }
+    return c;
+}
