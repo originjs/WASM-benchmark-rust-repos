@@ -12,4 +12,8 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 extern "C" {}
 
 #[wasm_bindgen]
-pub fn hello() {}
+pub fn multiply_double_vec(src1: &[f64], src2: &[f64], res: &mut [f64], n: usize) {
+    for i in 0..n {
+        res[i] = src1[i] * src2[i];
+    }
+}
