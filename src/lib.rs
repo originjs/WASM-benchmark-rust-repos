@@ -14,54 +14,44 @@ extern crate wasm_bindgen;
 #[wasm_bindgen]
 extern "C" {}
 
-#[macro_use]
-extern crate serde_derive;
-
-#[derive(Serialize, Deserialize)]
-pub struct Position {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl Position {
-    pub fn new(x: f64, y: f64, z: f64) -> Position {
-        Position { x: x, y: y, z: z }
-    }
-}
-
 #[wasm_bindgen]
-pub fn collision_detection(js_positions: &JsValue, radiuses: &[f64], res: &mut [u8], n: usize) -> i32 {
-    let positions: Vec<Position> = js_positions.into_serde().unwrap();
+pub fn imageConvolute(data: &[u8], data2: &mut [u8], width: i32, height: i32, weights: &[f64], wwidth: i32, wheight: i32) {
+    let halfWWidth = wwidth / 2;
+    let halfWHeight = wheight / 2;
 
-    let mut count = 0;
-    for (i, p) in positions.iter().enumerate() {
-        let r = radiuses[i];
-        let mut collision = false;
+    for y in 0..height {
+        for x in 0..width {
+            let mut r: f64 = 0.0;
+            let mut g: f64 = 0.0;
+            let mut b: f64 = 0.0;
+            let mut a: f64 = 0.0;
 
-        for j in (i + 1)..n {
-            let p2 = &positions[j];
-            let r2 = radiuses[j];
-            let dx = p.x - p2.x;
-            let dy = p.y - p2.y;
-            let dz = p.z - p2.z;
-            let mut d = (dx * dx + dy * dy + dz * dz).sqrt();
+            for wy in 0..wheight {
+                let sy = y + wy - halfWHeight;
+                if sy < 0 || sy >= height {
+                    continue;
+                }
 
-            if (r > d) {
-                collision = true;
-                count += 1;
-                break;
+                for wx in 0..wwidth {
+                    let sx = x + wx - halfWWidth;
+                    if sx < 0 || sx >= width {
+                        continue;
+                    }
+
+                    let index = (sy * width + sx) as usize;
+                    let weight: f64 = weights[(wy * wwidth + wx) as usize];
+                    r += f64::from(data[index * 4 + 0]) * weight;
+                    g += f64::from(data[index * 4 + 1]) * weight;
+                    b += f64::from(data[index * 4 + 2]) * weight;
+                    a += f64::from(data[index * 4 + 3]) * weight;
+                }
             }
-        }
 
-        let index = (i / 8);
-        let pos = 7 - (i % 8);
-        if (!collision) {
-            res[index] &= !(1 << pos);
-        } else {
-            res[index] |= (1 << pos);
+            let index = (y * width + x) as usize;
+            data2[index * 4 + 0] = r as u8;
+            data2[index * 4 + 1] = g as u8;
+            data2[index * 4 + 2] = b as u8;
+            data2[index * 4 + 3] = a as u8;
         }
     }
-
-    count
 }

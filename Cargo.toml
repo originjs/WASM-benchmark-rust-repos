@@ -1,5 +1,5 @@
 [package]
-name = "collisionDetectionRust"
+name = "imageConvoluteRust"
 version = "0.1.0"
 authors = ["PeterAlfredLee <peteralfredlee@gmail.com>"]
 edition = "2018"
