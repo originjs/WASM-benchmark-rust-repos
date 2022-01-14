@@ -1,5 +1,5 @@
 [package]
-name = "imageConvoluteRust"
+name = "md5Rust"
 version = "0.1.0"
 authors = ["PeterAlfredLee <peteralfredlee@gmail.com>"]
 edition = "2018"
@@ -7,14 +7,15 @@ edition = "2018"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[features]
-default = ["console_error_panic_hook"]
-
 [dependencies]
 wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"] }
 serde_json = "1.0.32"
 serde_derive = "1.0.80"
 serde = "1.0.80"
+
+[dependencies.web-sys]
+version = "0.3"
+features = [ "console" ]
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -33,5 +34,6 @@ wee_alloc = { version = "0.4.5", optional = true }
 wasm-bindgen-test = "0.3.13"
 
 [profile.release]
+lto = true
 # Tell `rustc` to optimize for small code size.
-opt-level = "s"
+opt-level = 3
