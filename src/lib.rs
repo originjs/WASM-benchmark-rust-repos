@@ -42,7 +42,7 @@ pub fn md5Process(doFlush: u8, hashWords: &mut [u32], dataWords: &[u32], dataSig
 
 fn md5DoProcessBlock(originalM: &[u32], offsetU32: u32, hashWords: &mut [u32], T: &[u32]) {
     let offset = offsetU32 as usize;
-    let mut M: [u32;16] = [0_u32;16];
+    let mut M: [u32; 16] = [0_u32; 16];
     for i in 0..16 {
         // Shortcuts
         let offset_i = offset + i;
@@ -50,7 +50,7 @@ fn md5DoProcessBlock(originalM: &[u32], offsetU32: u32, hashWords: &mut [u32], T
         let M_offset_i = originalM[offset_i];
 
         M[offset_i % 16] = (((M_offset_i << 8) | (M_offset_i >> 24)) & 0x00ff00ff) |
-                (((M_offset_i << 24) | (M_offset_i >> 8)) & 0xff00ff00);
+            (((M_offset_i << 24) | (M_offset_i >> 8)) & 0xff00ff00);
     }
 
     let mut a = hashWords[0];
