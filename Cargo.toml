@@ -1,5 +1,5 @@
 [package]
-name = "sha1"
+name = "sha256"
 version = "0.1.0"
 authors = ["Alanscut <wp_scut@163.com>"]
 edition = "2018"
