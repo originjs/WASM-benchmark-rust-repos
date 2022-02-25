@@ -4,12 +4,17 @@ use wasm_bindgen::prelude::*;
 pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySchedule: &[u32], SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        let mut prevBlock = slice(iv, 0, blockSize);
-        if mode == "cbc" {
+        if mode.to_lowercase() == "cbc" {
+            let mut prevBlock = slice(iv, 0, blockSize);
             while offset < nWordsReady {
                 xorBlock(blockSize, prevBlock, dataWords, offset);
                 encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                 prevBlock = slice(dataWords, offset, offset + blockSize);
+                offset += blockSize;
+            }
+        } else if mode.to_lowercase() == "ecb" {
+            while offset < nWordsReady {
+                encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                 offset += blockSize;
             }
         }
@@ -20,13 +25,18 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
 pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySchedule: &[u32], SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        let mut prevBlock = slice(iv, 0, blockSize);
         if mode == "cbc" {
+            let mut prevBlock = slice(iv, 0, blockSize);
             while offset < nWordsReady {
                 let thisBlock = slice(dataWords, offset, offset + blockSize);
                 decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                 xorBlock(blockSize, prevBlock, dataWords, offset);
                 prevBlock = thisBlock;
+                offset += blockSize;
+            }
+        } else if mode.to_lowercase() == "ecb" {
+            while offset < nWordsReady {
+                decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                 offset += blockSize;
             }
         }
