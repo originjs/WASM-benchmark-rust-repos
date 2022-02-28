@@ -6,11 +6,11 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
             "cbc" => {
-                let mut prevBlock = slice(iv, 0, blockSize);
+                let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
                     xorBlock(blockSize, prevBlock, dataWords, offset);
                     encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
-                    prevBlock = slice(dataWords, offset, offset + blockSize);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
                 }
             }
@@ -31,9 +31,9 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
             "cbc" => {
-                let mut prevBlock = slice(iv, 0, blockSize);
+                let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    let thisBlock = slice(dataWords, offset, offset + blockSize);
+                    let thisBlock = dataWords[offset..offset + blockSize].to_vec();
                     decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                     xorBlock(blockSize, prevBlock, dataWords, offset);
                     prevBlock = thisBlock;
@@ -49,14 +49,6 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
             _ => {}
         }
     }
-}
-
-fn slice(arr: &[u32], start: usize, end: usize) -> Vec<u32> {
-    let mut vec = Vec::new();
-    for i in start..end {
-        vec.push(arr[i]);
-    }
-    vec
 }
 
 fn xorBlock(blockSize: usize, block: Vec<u32>, words: &mut [u32], offset: usize) {
