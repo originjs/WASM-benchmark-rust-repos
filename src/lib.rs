@@ -4,19 +4,23 @@ use wasm_bindgen::prelude::*;
 pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySchedule: &[u32], SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        if mode.to_lowercase() == "cbc" {
-            let mut prevBlock = slice(iv, 0, blockSize);
-            while offset < nWordsReady {
-                xorBlock(blockSize, prevBlock, dataWords, offset);
-                encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
-                prevBlock = slice(dataWords, offset, offset + blockSize);
-                offset += blockSize;
+        match mode.to_lowercase().as_str() {
+            "cbc" => {
+                let mut prevBlock = slice(iv, 0, blockSize);
+                while offset < nWordsReady {
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                    prevBlock = slice(dataWords, offset, offset + blockSize);
+                    offset += blockSize;
+                }
             }
-        } else if mode.to_lowercase() == "ecb" {
-            while offset < nWordsReady {
-                encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
-                offset += blockSize;
+            "ecb" => {
+                while offset < nWordsReady {
+                    encryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                    offset += blockSize;
+                }
             }
+            _ => {}
         }
     }
 }
@@ -25,20 +29,24 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
 pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySchedule: &[u32], SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        if mode == "cbc" {
-            let mut prevBlock = slice(iv, 0, blockSize);
-            while offset < nWordsReady {
-                let thisBlock = slice(dataWords, offset, offset + blockSize);
-                decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
-                xorBlock(blockSize, prevBlock, dataWords, offset);
-                prevBlock = thisBlock;
-                offset += blockSize;
+        match mode.to_lowercase().as_str() {
+            "cbc" => {
+                let mut prevBlock = slice(iv, 0, blockSize);
+                while offset < nWordsReady {
+                    let thisBlock = slice(dataWords, offset, offset + blockSize);
+                    decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    prevBlock = thisBlock;
+                    offset += blockSize;
+                }
             }
-        } else if mode.to_lowercase() == "ecb" {
-            while offset < nWordsReady {
-                decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
-                offset += blockSize;
+            "ecb" => {
+                while offset < nWordsReady {
+                    decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                    offset += blockSize;
+                }
             }
+            _ => {}
         }
     }
 }
@@ -78,7 +86,7 @@ fn decryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedul
 
 fn doCryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedule: &[u32], SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
     // Get input, add round key
-    let mut s0 = dataWords[offset]     ^ keySchedule[0];
+    let mut s0 = dataWords[offset] ^ keySchedule[0];
     let mut s1 = dataWords[offset + 1] ^ keySchedule[1];
     let mut s2 = dataWords[offset + 2] ^ keySchedule[2];
     let mut s3 = dataWords[offset + 3] ^ keySchedule[3];
@@ -116,7 +124,7 @@ fn doCryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedul
     ksRow += 1;
 
     // Set output
-    dataWords[offset]     = t0;
+    dataWords[offset] = t0;
     dataWords[offset + 1] = t1;
     dataWords[offset + 2] = t2;
     dataWords[offset + 3] = t3;
