@@ -20,6 +20,16 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                     offset += blockSize;
                 }
             }
+            "cfb" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    let mut keystream = prevBlock;
+                    encryptBlock(nRounds, &mut keystream, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
+            }
             _ => {}
         }
     }
@@ -44,6 +54,16 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 while offset < nWordsReady {
                     decryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
                     offset += blockSize;
+                }
+            }
+            "cfb" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    let thisBlock = dataWords[offset..offset + blockSize].to_vec();
+                    let keystream = &mut prevBlock;
+                    encryptBlock(nRounds, keystream, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    prevBlock = thisBlock;
                 }
             }
             _ => {}
