@@ -1,13 +1,13 @@
 mod utils;
 
 use wasm_bindgen::prelude::*;
-use crate::utils::{getSbox, getInvSbox, getSubMix0, getSubMix1, getSubMix2, getSubMix3, getInvSubMix0, getInvSubMix1, getInvSubMix2, getInvSubMix3};
+use crate::utils::{getSbox, getInvSbox, getSubMix0, getSubMix1, getSubMix2, getSubMix3, getInvSubMix0, getInvSubMix1, getInvSubMix2, getInvSubMix3, getKeySchedules, getInvKeySchedules};
 
 #[wasm_bindgen]
 extern "C" {}
 
 #[wasm_bindgen]
-pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySchedule: &[u32]) {
+pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySize: u32, keyWords: &[u32]) {
     if nWordsReady > 0 {
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
@@ -15,14 +15,14 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
                     xorBlock(blockSize, prevBlock, dataWords, offset);
-                    encryptBlock(nRounds, dataWords, offset, keySchedule);
+                    encryptBlock(nRounds, dataWords, offset, keySize, keyWords);
                     prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
                 }
             }
             "ecb" => {
                 while offset < nWordsReady {
-                    encryptBlock(nRounds, dataWords, offset, keySchedule);
+                    encryptBlock(nRounds, dataWords, offset, keySize, keyWords);
                     offset += blockSize;
                 }
             }
@@ -30,7 +30,7 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
                     let mut keystream = prevBlock;
-                    encryptBlock(nRounds, &mut keystream, 0, keySchedule);
+                    encryptBlock(nRounds, &mut keystream, 0, keySize, keyWords);
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
@@ -39,7 +39,7 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
             "ofb" => {
                 let mut keystream = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    encryptBlock(nRounds, &mut keystream, 0, keySchedule);
+                    encryptBlock(nRounds, &mut keystream, 0, keySize, keyWords);
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
@@ -49,7 +49,7 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 let mut keystream;
                 while offset < nWordsReady {
                     keystream = counter.clone();
-                    encryptBlock(nRounds, &mut keystream, 0, keySchedule);
+                    encryptBlock(nRounds, &mut keystream, 0, keySize, keyWords);
                     // Increment counter
                     counter[blockSize - 1] = (counter[blockSize - 1] + 1) | 0;
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
@@ -62,7 +62,7 @@ pub fn doEncrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
 }
 
 #[wasm_bindgen]
-pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySchedule: &[u32]) {
+pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usize, iv: &[u32], dataWords: &mut [u32], keySize: u32, keyWords: &[u32]) {
     if nWordsReady > 0 {
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
@@ -70,7 +70,7 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
                     let thisBlock = dataWords[offset..offset + blockSize].to_vec();
-                    decryptBlock(nRounds, dataWords, offset, keySchedule);
+                    decryptBlock(nRounds, dataWords, offset, keySize, keyWords);
                     xorBlock(blockSize, prevBlock, dataWords, offset);
                     prevBlock = thisBlock;
                     offset += blockSize;
@@ -78,7 +78,7 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
             }
             "ecb" => {
                 while offset < nWordsReady {
-                    decryptBlock(nRounds, dataWords, offset, keySchedule);
+                    decryptBlock(nRounds, dataWords, offset, keySize, keyWords);
                     offset += blockSize;
                 }
             }
@@ -87,7 +87,7 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 while offset < nWordsReady {
                     let thisBlock = dataWords[offset..offset + blockSize].to_vec();
                     let keystream = &mut prevBlock;
-                    encryptBlock(nRounds, keystream, 0, keySchedule);
+                    encryptBlock(nRounds, keystream, 0, keySize, keyWords);
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     prevBlock = thisBlock;
                     offset += blockSize;
@@ -96,7 +96,7 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
             "ofb" => {
                 let mut keystream = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    encryptBlock(nRounds, &mut keystream, 0, keySchedule);
+                    encryptBlock(nRounds, &mut keystream, 0, keySize, keyWords);
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
@@ -106,7 +106,7 @@ pub fn doDecrypt(mode: &str, nRounds: usize, nWordsReady: usize, blockSize: usiz
                 let mut keystream;
                 while offset < nWordsReady {
                     keystream = counter.clone();
-                    encryptBlock(nRounds, &mut keystream, 0, keySchedule);
+                    encryptBlock(nRounds, &mut keystream, 0, keySize, keyWords);
                     // Increment counter
                     counter[blockSize - 1] = (counter[blockSize - 1] + 1) | 0;
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
@@ -125,16 +125,18 @@ fn xorBlock(blockSize: usize, block: Vec<u32>, words: &mut [u32], offset: usize)
     }
 }
 
-fn encryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedule: &[u32]) {
+fn encryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySize: u32, keyWords: &[u32]) {
     let SUB_MIX_0 = &getSubMix0();
     let SUB_MIX_1 = &getSubMix1();
     let SUB_MIX_2 = &getSubMix2();
     let SUB_MIX_3 = &getSubMix3();
     let SBOX = &getSbox();
-    doCryptBlock(nRounds, dataWords, offset, keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
+
+    let keySchedule = getKeySchedules(keySize, keyWords);
+    doCryptBlock(nRounds, dataWords, offset, &keySchedule, SUB_MIX_0, SUB_MIX_1, SUB_MIX_2, SUB_MIX_3, SBOX);
 }
 
-fn decryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedule: &[u32]) {
+fn decryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySize: u32, keyWords: &[u32]) {
     // Swap 2nd and 4th rows
     let mut t = dataWords[offset + 1];
     dataWords[offset + 1] = dataWords[offset + 3];
@@ -145,8 +147,10 @@ fn decryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedul
     let INV_SUB_MIX_2 = &getInvSubMix2();
     let INV_SUB_MIX_3 = &getInvSubMix3();
     let INV_SBOX = &getInvSbox();
+    let keySchedule = getKeySchedules(keySize, keyWords);
+    let invKeySchedule = getInvKeySchedules(keySize, keyWords, keySchedule);
 
-    doCryptBlock(nRounds, dataWords, offset, keySchedule, INV_SUB_MIX_0, INV_SUB_MIX_1, INV_SUB_MIX_2, INV_SUB_MIX_3, INV_SBOX);
+    doCryptBlock(nRounds, dataWords, offset, &invKeySchedule, INV_SUB_MIX_0, INV_SUB_MIX_1, INV_SUB_MIX_2, INV_SUB_MIX_3, INV_SBOX);
 
     // Inv swap 2nd and 4th rows
     t = dataWords[offset + 1];
@@ -154,7 +158,7 @@ fn decryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedul
     dataWords[offset + 3] = t;
 }
 
-fn doCryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedule: &[u32], SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
+fn doCryptBlock(nRounds: usize, dataWords: &mut [u32], offset: usize, keySchedule: &Vec<u32>, SUB_MIX_0: &[u32], SUB_MIX_1: &[u32], SUB_MIX_2: &[u32], SUB_MIX_3: &[u32], SBOX: &[u32]) {
     // Get input, add round key
     let mut s0 = dataWords[offset] ^ keySchedule[0];
     let mut s1 = dataWords[offset + 1] ^ keySchedule[1];

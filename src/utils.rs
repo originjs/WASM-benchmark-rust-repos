@@ -1,3 +1,92 @@
+pub fn getKeySchedules(keySize: u32, keyWords: &[u32]) -> Vec<u32> {
+    let nRounds = getRounds(keySize);
+    let mut t;
+
+    let SBOX = getSbox();
+    let RCON = getRCON();
+
+
+    // Compute number of key schedule rows
+    let ksRows = (nRounds + 1) * 4;
+    let mut keySchedule = vec![0;ksRows as usize];
+    for ksRow in 0..ksRows {
+        if (ksRow < keySize) {
+            keySchedule[ksRow as usize] = keyWords[ksRow as usize];
+        } else {
+            t = keySchedule[ksRow as usize - 1];
+
+            if ((ksRow % keySize) == 0) {
+                // Rot word
+                t = (t << 8) | (t >> 24);
+
+                // Sub word
+                t = (SBOX[t as usize >> 24] << 24)
+                    | (SBOX[(t >> 16) as usize & 0xff] << 16)
+                    | (SBOX[(t >> 8) as usize & 0xff] << 8)
+                    | SBOX[t as usize & 0xff];
+
+                // Mix Rcon
+                t ^= RCON[(ksRow / keySize) as usize] << 24;
+            } else if (keySize > 6 && ksRow % keySize == 4) {
+                // Sub word
+                t = (SBOX[t as usize >> 24] << 24)
+                    | (SBOX[(t >> 16) as usize & 0xff] << 16)
+                    | (SBOX[(t >> 8) as usize & 0xff] << 8)
+                    | SBOX[t as usize & 0xff];
+            }
+
+            keySchedule[ksRow as usize] = keySchedule[ksRow as usize - keySize as usize] ^ t;
+        }
+    }
+
+    keySchedule
+}
+
+pub fn getInvKeySchedules(keySize: u32, keyWords: &[u32], keySchedule: Vec<u32>) -> Vec<u32> {
+    let nRounds = getRounds(keySize);
+    let mut t;
+
+    let SBOX = getSbox();
+    let INV_SUB_MIX_0 = getInvSubMix0();
+    let INV_SUB_MIX_1 = getInvSubMix1();
+    let INV_SUB_MIX_2 = getInvSubMix2();
+    let INV_SUB_MIX_3 = getInvSubMix3();
+
+
+    // Compute number of key schedule rows
+    let ksRows = (nRounds + 1) * 4;
+    let mut invKeySchedule = vec![0;ksRows as usize];
+
+    for invKsRow in 0..ksRows {
+        let ksRow = ksRows - invKsRow;
+
+        if (invKsRow % 4 != 0) {
+            t = keySchedule[ksRow as usize];
+        } else {
+            t = keySchedule[ksRow as usize - 4];
+        }
+
+        if (invKsRow < 4 || ksRow <= 4) {
+            invKeySchedule[invKsRow as usize] = t;
+        } else {
+            invKeySchedule[invKsRow as usize] = INV_SUB_MIX_0[SBOX[t as usize >> 24] as usize]
+                ^ INV_SUB_MIX_1[SBOX[(t >> 16) as usize & 0xff] as usize]
+                ^ INV_SUB_MIX_2[SBOX[(t >> 8) as usize & 0xff] as usize]
+                ^ INV_SUB_MIX_3[SBOX[t as usize & 0xff] as usize];
+        }
+    }
+
+    invKeySchedule
+}
+
+pub fn getRounds(keySize: u32) -> u32 {
+    keySize + 6
+}
+
+pub fn getRCON() -> [u32; 11] {
+    [0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36]
+}
+
 pub fn getSbox() -> [u32; 256] {
     [0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
         0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0,

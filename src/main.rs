@@ -4,7 +4,7 @@ fn initData() {}
 
 fn main() {
     let iv: [u32; 4] = [808530483, 875902519, 943274555, 1010646591];
-    let mut dataWords = [66051, 67438087, 134810123, 202182159, 269554195, 336926231, 404298267, 471670303];
+    let mut dataWords = [3682395770, 4047365498, 2514035429, 844807955, 1997576358, 3079451740, 43839936, 3723366171];
 
     let mut SBOX = [0; 256];
     let mut INV_SBOX = [0; 256];
@@ -73,13 +73,13 @@ fn main() {
     // println!("INV_SUB_MIX_0 : {:#02X?}", INV_SUB_MIX_0);
     // println!("INV_SUB_MIX_1 : {:#02X?}", INV_SUB_MIX_1);
     // println!("INV_SUB_MIX_2 : {:#02X?}", INV_SUB_MIX_2);
-    println!("INV_SUB_MIX_3 : {:#02X?}", INV_SUB_MIX_3);
+    // println!("INV_SUB_MIX_3 : {:#02X?}", INV_SUB_MIX_3);
 
 
     let keySize = 4u32;
     let mut t;
     let keyWords = [539042339, 606414375, 673786411, 741158447];
-    let mut keySchedule: [u32;44] = [0u32; 44];
+    let mut keySchedule: [u32; 44] = [0u32; 44];
     let RCON = [0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 0x1b, 0x36];
     let ksRows = 44;
     for ksRow in 0..ksRows {
@@ -133,10 +133,12 @@ fn main() {
         }
     }
 
-    doEncrypt("cfb", 10, 8, 4, &iv, &mut dataWords, &keySchedule, &SUB_MIX_0, &SUB_MIX_1, &SUB_MIX_2, &SUB_MIX_3);
-    println!("encrypt : {:?}", dataWords);
+    // doEncrypt("cfb", 10, 8, 4, &iv, &mut dataWords, &keySchedule);
+    // println!("encrypt : {:?}", dataWords);
     // doDecrypt("cfb", 10, 8, 4, &iv, &mut dataWords, &invKeySchedule, &INV_SUB_MIX_0, &INV_SUB_MIX_1, &INV_SUB_MIX_2, &INV_SUB_MIX_3, &INV_SBOX);
-    doDecrypt("cfb", 10, 8, 4, &iv, &mut dataWords, &keySchedule, &SUB_MIX_0, &SUB_MIX_1, &SUB_MIX_2, &SUB_MIX_3, &SBOX);
+    let keyWords = [539042339, 606414375, 673786411, 741158447];
+    doEncrypt("ecb", 10, 8, 4, &iv, &mut dataWords, 4, &keyWords);
+    // doDecrypt("ecb", 10, 8, 4, &iv, &mut dataWords, &keySchedule);
     println!("decrypt : {:?}", dataWords);
     println!("{:?}", dataWords);
 }
