@@ -13,7 +13,6 @@ pub fn doCrypt(doFlush: u8, hashWords: &mut [u32], dataWords: &[u32], dataSigByt
     }
 
     let nWordsReady = nBlocksReady as u32 * blockSize;
-    let nBytesReady = cmp::min(nWordsReady * 4, dataSigBytes);
 
     if nWordsReady > 0 {
         let mut offset = 0;
