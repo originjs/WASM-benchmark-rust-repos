@@ -1,3 +1,6 @@
+mod utils;
+
+use crate::utils::{getInvSubKeys, getSboxMask, getSboxP, getSubKeys};
 use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
 
@@ -8,31 +11,60 @@ pub fn doEncrypt(
     blockSize: usize,
     iv: &[u32],
     dataWords: &mut [u32],
-    subKeys: &[u32],
-    SBOX_P_ARRAY: &[u32],
-    SBOX_MASK: &[u32],
+    keyWords: &[u32],
 ) {
-    let mut SBOX_P = Vec::new();
-    for i in 0..8 {
-        let mut map = HashMap::new();
-        for j in 0..64 {
-            map.insert(
-                SBOX_P_ARRAY[i * 128 + j * 2],
-                SBOX_P_ARRAY[i * 128 + j * 2 + 1],
-            );
-        }
-        SBOX_P.push(map);
-    }
+    let subKeys = getSubKeys(keyWords);
+    let SBOX_P = getSboxP();
+    let SBOX_MASK = getSboxMask();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        let mut prevBlock = slice(iv, 0, blockSize);
-        if mode == "cbc" {
-            while offset < nWordsReady {
-                xorBlock(blockSize, prevBlock, dataWords, offset);
-                doCryptBlock(dataWords, offset, subKeys, &SBOX_P, SBOX_MASK);
-                prevBlock = slice(dataWords, offset, offset + blockSize);
-                offset += blockSize;
+        match mode.to_lowercase().as_str() {
+            "cbc" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    doCryptBlock(dataWords, offset, &subKeys, &SBOX_P, &SBOX_MASK);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
             }
+            "ecb" => {
+                while offset < nWordsReady {
+                    doCryptBlock(dataWords, offset, &subKeys, &SBOX_P, &SBOX_MASK);
+                    offset += blockSize;
+                }
+            }
+            "cfb" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    let mut keystream = prevBlock;
+                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
+            }
+            "ofb" => {
+                let mut keystream = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            "ctr" => {
+                let mut counter = iv[0..blockSize].to_vec();
+                let mut keystream;
+                while offset < nWordsReady {
+                    keystream = counter.clone();
+                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    // Increment counter
+                    counter[blockSize - 1] = (counter[blockSize - 1] + 1) | 0;
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -44,32 +76,61 @@ pub fn doDecrypt(
     blockSize: usize,
     iv: &[u32],
     dataWords: &mut [u32],
-    subKeys: &[u32],
-    SBOX_P_ARRAY: &[u32],
-    SBOX_MASK: &[u32],
+    keyWords: &[u32],
 ) {
-    let mut SBOX_P = Vec::new();
-    for i in 0..8 {
-        let mut map = HashMap::new();
-        for j in 0..64 {
-            map.insert(
-                SBOX_P_ARRAY[i * 128 + j * 2],
-                SBOX_P_ARRAY[i * 128 + j * 2 + 1],
-            );
-        }
-        SBOX_P.push(map);
-    }
+    let subKeys = getSubKeys(keyWords);
+    let invSubKeys = getInvSubKeys(&subKeys);
+    let SBOX_P = getSboxP();
+    let SBOX_MASK = getSboxMask();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        let mut prevBlock = slice(iv, 0, blockSize);
-        if mode == "cbc" {
-            while offset < nWordsReady {
-                let thisBlock = slice(dataWords, offset, offset + blockSize);
-                doCryptBlock(dataWords, offset, subKeys, &SBOX_P, SBOX_MASK);
-                xorBlock(blockSize, prevBlock, dataWords, offset);
-                prevBlock = thisBlock;
-                offset += blockSize;
+        match mode.to_lowercase().as_str() {
+            "cbc" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    doCryptBlock(dataWords, offset, &invSubKeys, &SBOX_P, &SBOX_MASK);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
             }
+            "ecb" => {
+                while offset < nWordsReady {
+                    doCryptBlock(dataWords, offset, &invSubKeys, &SBOX_P, &SBOX_MASK);
+                    offset += blockSize;
+                }
+            }
+            "cfb" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    let mut keystream = prevBlock;
+                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
+            }
+            "ofb" => {
+                let mut keystream = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            "ctr" => {
+                let mut counter = iv[0..blockSize].to_vec();
+                let mut keystream;
+                while offset < nWordsReady {
+                    keystream = counter.clone();
+                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    // Increment counter
+                    counter[blockSize - 1] = (counter[blockSize - 1] + 1) | 0;
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -81,35 +142,75 @@ pub fn tripleEncrypt(
     blockSize: usize,
     iv: &[u32],
     dataWords: &mut [u32],
-    subKeys1: &[u32],
-    subKeys2: &[u32],
-    subKeys3: &[u32],
-    SBOX_P_ARRAY: &[u32],
-    SBOX_MASK: &[u32],
+    keyWords1: &[u32],
+    keyWords2: &[u32],
+    keyWords3: &[u32],
 ) {
-    let mut SBOX_P = Vec::new();
-    for i in 0..8 {
-        let mut map = HashMap::new();
-        for j in 0..64 {
-            map.insert(
-                SBOX_P_ARRAY[i * 128 + j * 2],
-                SBOX_P_ARRAY[i * 128 + j * 2 + 1],
-            );
-        }
-        SBOX_P.push(map);
-    }
+    let subKeys1 = getSubKeys(keyWords1);
+    let subKeys2 = getSubKeys(keyWords2);
+    let subKeys3 = getSubKeys(keyWords3);
+    let invSubKeys2 = getInvSubKeys(&subKeys2);
+    let SBOX_P = getSboxP();
+    let SBOX_MASK = getSboxMask();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        let mut prevBlock = slice(iv, 0, blockSize);
-        if mode == "cbc" {
-            while offset < nWordsReady {
-                xorBlock(blockSize, prevBlock, dataWords, offset);
-                doCryptBlock(dataWords, offset, subKeys1, &SBOX_P, SBOX_MASK);
-                doCryptBlock(dataWords, offset, subKeys2, &SBOX_P, SBOX_MASK);
-                doCryptBlock(dataWords, offset, subKeys3, &SBOX_P, SBOX_MASK);
-                prevBlock = slice(dataWords, offset, offset + blockSize);
-                offset += blockSize;
+        match mode.to_lowercase().as_str() {
+            "cbc" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    doCryptBlock(dataWords, offset, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
             }
+            "ecb" => {
+                while offset < nWordsReady {
+                    doCryptBlock(dataWords, offset, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    offset += blockSize;
+                }
+            }
+            "cfb" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    let mut keystream = prevBlock;
+                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
+            }
+            "ofb" => {
+                let mut keystream = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            "ctr" => {
+                let mut counter = iv[0..blockSize].to_vec();
+                let mut keystream;
+                while offset < nWordsReady {
+                    keystream = counter.clone();
+                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    // Increment counter
+                    counter[blockSize - 1] = (counter[blockSize - 1] + 1) | 0;
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            _ => {}
         }
     }
 }
@@ -121,46 +222,79 @@ pub fn tripleDecrypt(
     blockSize: usize,
     iv: &[u32],
     dataWords: &mut [u32],
-    subKeys1: &[u32],
-    subKeys2: &[u32],
-    subKeys3: &[u32],
-    SBOX_P_ARRAY: &[u32],
-    SBOX_MASK: &[u32],
+    keyWords1: &[u32],
+    keyWords2: &[u32],
+    keyWords3: &[u32],
 ) {
-    let mut SBOX_P = Vec::new();
-    for i in 0..8 {
-        let mut map = HashMap::new();
-        for j in 0..64 {
-            map.insert(
-                SBOX_P_ARRAY[i * 128 + j * 2],
-                SBOX_P_ARRAY[i * 128 + j * 2 + 1],
-            );
-        }
-        SBOX_P.push(map);
-    }
+    let subKeys1 = getSubKeys(keyWords1);
+    let subKeys2 = getSubKeys(keyWords2);
+    let subKeys3 = getSubKeys(keyWords3);
+    let invSubKeys1 = getInvSubKeys(&subKeys1);
+    let invSubKeys2 = getInvSubKeys(&subKeys2);
+    let invSubKeys3 = getInvSubKeys(&subKeys3);
+    let SBOX_P = getSboxP();
+    let SBOX_MASK = getSboxMask();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
-        let mut prevBlock = slice(iv, 0, blockSize);
-        if mode == "cbc" {
-            while offset < nWordsReady {
-                let thisBlock = slice(dataWords, offset, offset + blockSize);
-                doCryptBlock(dataWords, offset, subKeys1, &SBOX_P, SBOX_MASK);
-                doCryptBlock(dataWords, offset, subKeys2, &SBOX_P, SBOX_MASK);
-                doCryptBlock(dataWords, offset, subKeys3, &SBOX_P, SBOX_MASK);
-                xorBlock(blockSize, prevBlock, dataWords, offset);
-                prevBlock = thisBlock;
-                offset += blockSize;
+        match mode.to_lowercase().as_str() {
+            "cbc" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &invSubKeys3, &SBOX_P, &SBOX_MASK);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
             }
+            "ecb" => {
+                while offset < nWordsReady {
+                    doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &invSubKeys3, &SBOX_P, &SBOX_MASK);
+                    offset += blockSize;
+                }
+            }
+            "cfb" => {
+                let mut prevBlock = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    let mut keystream = prevBlock;
+                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    offset += blockSize;
+                }
+            }
+            "ofb" => {
+                let mut keystream = iv[0..blockSize].to_vec();
+                while offset < nWordsReady {
+                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            "ctr" => {
+                let mut counter = iv[0..blockSize].to_vec();
+                let mut keystream;
+                while offset < nWordsReady {
+                    keystream = counter.clone();
+                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    // Increment counter
+                    counter[blockSize - 1] = (counter[blockSize - 1] + 1) | 0;
+                    xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
+                    offset += blockSize;
+                }
+            }
+            _ => {}
         }
     }
-}
-
-fn slice(arr: &[u32], start: usize, end: usize) -> Vec<u32> {
-    let mut vec = Vec::new();
-    for i in start..end {
-        vec.push(arr[i]);
-    }
-    vec
 }
 
 fn xorBlock(blockSize: usize, block: Vec<u32>, words: &mut [u32], offset: usize) {
@@ -173,9 +307,9 @@ fn xorBlock(blockSize: usize, block: Vec<u32>, words: &mut [u32], offset: usize)
 fn doCryptBlock(
     dataWords: &mut [u32],
     offset: usize,
-    subKeys: &[u32],
+    subKeys: &Vec<[u32; 8]>,
     SBOX_P: &Vec<HashMap<u32, u32>>,
-    SBOX_dataWordsASK: &[u32],
+    SBOX_dataWordsASK: &[u32; 8],
 ) {
     // Get input
     let mut lBlock = dataWords[offset];
@@ -190,11 +324,12 @@ fn doCryptBlock(
 
     // Rounds
     for round in 0..16 {
+        let subKey = subKeys[round];
         // Feistel function
         let mut f = 0;
         for i in 0..8 {
             f |= *&SBOX_P[i]
-                .get(&((rBlock ^ subKeys[round * 8 + i]) & SBOX_dataWordsASK[i]))
+                .get(&((rBlock ^ subKey[i]) & SBOX_dataWordsASK[i]))
                 .unwrap();
         }
         let t = lBlock;
