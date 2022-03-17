@@ -88,9 +88,10 @@ pub fn doDecrypt(
             "cbc" => {
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    let thisBlock = dataWords[offset..offset + blockSize].to_vec();
                     doCryptBlock(dataWords, offset, &invSubKeys, &SBOX_P, &SBOX_MASK);
-                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    prevBlock = thisBlock;
                     offset += blockSize;
                 }
             }
@@ -103,10 +104,11 @@ pub fn doDecrypt(
             "cfb" => {
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    let mut keystream = prevBlock;
-                    doCryptBlock(&mut keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
+                    let thisBlock = dataWords[offset..offset + blockSize].to_vec();
+                    let keystream = &mut prevBlock;
+                    doCryptBlock(keystream, 0, &subKeys, &SBOX_P, &SBOX_MASK);
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
-                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    prevBlock = thisBlock;
                     offset += blockSize;
                 }
             }
@@ -240,11 +242,12 @@ pub fn tripleDecrypt(
             "cbc" => {
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    let thisBlock = dataWords[offset..offset + blockSize].to_vec();
                     doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
                     doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
                     doCryptBlock(dataWords, offset, &invSubKeys3, &SBOX_P, &SBOX_MASK);
-                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    xorBlock(blockSize, prevBlock, dataWords, offset);
+                    prevBlock = thisBlock;
                     offset += blockSize;
                 }
             }
@@ -259,12 +262,13 @@ pub fn tripleDecrypt(
             "cfb" => {
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
-                    let mut keystream = prevBlock;
-                    doCryptBlock(&mut keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
-                    doCryptBlock(&mut keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
-                    doCryptBlock(&mut keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
+                    let thisBlock = dataWords[offset..offset + blockSize].to_vec();
+                    let keystream = &mut prevBlock;
+                    doCryptBlock(keystream, 0, &subKeys1, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(keystream, 0, &invSubKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(keystream, 0, &subKeys3, &SBOX_P, &SBOX_MASK);
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
-                    prevBlock = dataWords[offset..offset + blockSize].to_vec();
+                    prevBlock = thisBlock;
                     offset += blockSize;
                 }
             }
