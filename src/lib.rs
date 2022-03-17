@@ -1,15 +1,13 @@
+mod utils;
+
 use std::ptr::null;
 use std::cmp;
 use wasm_bindgen::prelude::*;
+use utils::*;
 
-#[derive(Copy, Clone, Debug)]
-struct X64Word {
-    high: u32,
-    low: u32
-}
 
 #[wasm_bindgen]
-pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32, stateData: &mut [u32], minBufferSize: u32, RHO_OFFSETS: &[u32], PI_INDEXES: &[u32], ROUND_CONSTANTSDATA: &[u32]) -> u32 {
+pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32, stateData: &mut [u32], minBufferSize: u32) -> u32 {
     let blockSizeBytes = blockSize * 4;
     let mut nBlocksReady: f32 = dataSigBytes as f32 / blockSizeBytes as f32;
     if doFlush > 0 {
@@ -19,23 +17,16 @@ pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32
     }
 
     let nWordsReady = nBlocksReady as u32 * blockSize;
-    let nBytesReady = cmp::min(nWordsReady * 4, dataSigBytes);
 
-    let mut ROUND_CONSTANTS: [X64Word; 24] = [X64Word { high: 0, low: 0 }; 24];
     let mut state: [X64Word; 25] = [X64Word { high: 0, low: 0 }; 25];
     let mut T: [X64Word; 25] = [X64Word { high: 0, low: 0 }; 25];
 
     let mut i: usize = 0;
-    while i < 24 {
-        ROUND_CONSTANTS[i].high = ROUND_CONSTANTSDATA[i * 2];
-        ROUND_CONSTANTS[i].low = ROUND_CONSTANTSDATA[i * 2 + 1];
-        i += 1;
-    }
 
     if nWordsReady > 0 {
         let mut offset = 0;
         while offset < nWordsReady {
-            doCryptBlock(dataWords, offset, blockSize, &mut state, &mut T, RHO_OFFSETS, PI_INDEXES, &ROUND_CONSTANTS);
+            doCryptBlock(dataWords, offset, blockSize, &mut state, &mut T);
             offset += blockSize;
         }
     }
@@ -50,7 +41,10 @@ pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32
     nWordsReady
 }
 
-fn doCryptBlock(data: &[u32], offsetU32: u32, blockSize: u32, state: &mut [X64Word; 25], T: &mut [X64Word; 25], RHO_OFFSETS: &[u32], PI_INDEXES: &[u32], ROUND_CONSTANTS: &[X64Word]) {
+fn doCryptBlock(data: &[u32], offsetU32: u32, blockSize: u32, state: &mut [X64Word; 25], T: &mut [X64Word; 25]) {
+    let RHO_OFFSETS = getRhoOffsets();
+    let PI_INDEXES = getPiIndexes();
+    let ROUND_CONSTANTS = getRoundConstants();
     let offset = offsetU32 as usize;
 
     let nBlockSizeLanes = (blockSize / 2) as usize;
@@ -125,9 +119,8 @@ fn doCryptBlock(data: &[u32], offsetU32: u32, blockSize: u32, state: &mut [X64Wo
             x += 1;
         }
 
-        let mut laneIndex: usize = 0;
         // Rho Pi
-        while laneIndex < 25 {
+        for laneIndex in 1..25 {
             let mut tMsw: u32 = 0;
             let mut tLsw: u32 = 0;
 
@@ -150,8 +143,6 @@ fn doCryptBlock(data: &[u32], offsetU32: u32, blockSize: u32, state: &mut [X64Wo
             let TPiLane = &mut T[PI_INDEXES[laneIndex] as usize];
             TPiLane.high = tMsw;
             TPiLane.low  = tLsw;
-
-            laneIndex += 1;
         }
 
         // Rho pi at x = y = 0
