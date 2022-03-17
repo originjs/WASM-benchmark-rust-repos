@@ -243,9 +243,9 @@ pub fn tripleDecrypt(
                 let mut prevBlock = iv[0..blockSize].to_vec();
                 while offset < nWordsReady {
                     let thisBlock = dataWords[offset..offset + blockSize].to_vec();
-                    doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
-                    doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
                     doCryptBlock(dataWords, offset, &invSubKeys3, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
                     xorBlock(blockSize, prevBlock, dataWords, offset);
                     prevBlock = thisBlock;
                     offset += blockSize;
@@ -253,9 +253,9 @@ pub fn tripleDecrypt(
             }
             "ecb" => {
                 while offset < nWordsReady {
-                    doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
-                    doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
                     doCryptBlock(dataWords, offset, &invSubKeys3, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &subKeys2, &SBOX_P, &SBOX_MASK);
+                    doCryptBlock(dataWords, offset, &invSubKeys1, &SBOX_P, &SBOX_MASK);
                     offset += blockSize;
                 }
             }
