@@ -1,9 +1,12 @@
+mod utils;
+
 use std::ptr::null;
 use std::cmp;
 use wasm_bindgen::prelude::*;
+use utils::*;
 
 #[wasm_bindgen]
-pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32, hash: &mut [u32], minBufferSize: u32, K: &[u32]) -> u32 {
+pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32, hash: &mut [u32], minBufferSize: u32) -> u32 {
     let blockSizeBytes = blockSize * 4;
     let mut nBlocksReady: f32 = dataSigBytes as f32 / blockSizeBytes as f32;
     if doFlush > 0 {
@@ -13,12 +16,11 @@ pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32
     }
 
     let nWordsReady = nBlocksReady as u32 * blockSize;
-    let nBytesReady = cmp::min(nWordsReady * 4, dataSigBytes);
 
     if nWordsReady > 0 {
         let mut offset = 0;
         while offset < nWordsReady {
-            doCryptBlock(dataWords, offset, hash, K);
+            doCryptBlock(dataWords, offset, hash);
             offset += blockSize;
         }
     }
@@ -26,7 +28,8 @@ pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32
     nWordsReady
 }
 
-fn doCryptBlock(data: &[u32], offsetU32: u32, hash: &mut [u32], K: &[u32]) {
+fn doCryptBlock(data: &[u32], offsetU32: u32, hash: &mut [u32]) {
+    let K = getK();
     let offset = offsetU32 as usize;
 
     // Working variables
