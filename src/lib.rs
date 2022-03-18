@@ -3,6 +3,7 @@ mod utils;
 use std::ptr::null;
 use std::cmp;
 use wasm_bindgen::prelude::*;
+use utils::*;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -17,7 +18,7 @@ extern crate wasm_bindgen;
 extern "C" {}
 
 #[wasm_bindgen]
-pub fn md5Process(doFlush: u8, hashWords: &mut [u32], dataWords: &[u32], dataSigBytes: u32, blockSize: u32, minBufferSize: u32, T: &[u32]) -> u32 {
+pub fn md5Process(doFlush: u8, hashWords: &mut [u32], dataWords: &[u32], dataSigBytes: u32, blockSize: u32, minBufferSize: u32) -> u32 {
     let blockSizeBytes = blockSize * 4;
     let mut nBlocksReady: f32 = dataSigBytes as f32 / blockSizeBytes as f32;
     if (doFlush > 0) {
@@ -27,20 +28,20 @@ pub fn md5Process(doFlush: u8, hashWords: &mut [u32], dataWords: &[u32], dataSig
     }
 
     let nWordsReady = nBlocksReady as u32 * blockSize;
-    let nBytesReady = cmp::min(nWordsReady * 4, dataSigBytes);
 
     if (nWordsReady > 0) {
         let mut offset = 0;
         while (offset < nWordsReady) {
-            md5DoProcessBlock(dataWords, offset, hashWords, T);
+            md5DoProcessBlock(dataWords, offset, hashWords);
             offset += blockSize;
         }
     }
 
-    nBytesReady
+    nWordsReady
 }
 
-fn md5DoProcessBlock(originalM: &[u32], offsetU32: u32, hashWords: &mut [u32], T: &[u32]) {
+fn md5DoProcessBlock(originalM: &[u32], offsetU32: u32, hashWords: &mut [u32]) {
+    let T = getT();
     let offset = offsetU32 as usize;
     let mut M: [u32; 16] = [0_u32; 16];
     for i in 0..16 {
