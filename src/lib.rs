@@ -1,23 +1,21 @@
+mod utils;
+
 use wasm_bindgen::prelude::*;
+use utils::*;
 
 #[wasm_bindgen]
-pub fn doCrypt(nWordsReady: u32, blockSize: u32, dataWords: &[u32], hash: &mut [u32], K: &[u32]) {
+pub fn doCrypt(nWordsReady: u32, blockSize: u32, dataWords: &[u32], hash: &mut [u32]) {
     let mut hashU64: [u64; 8] = [0; 8];
     for i in 0..8 {
         let hashHigh: u64 = hash[i * 2] as u64;
         let hashLow: u64 = hash[i * 2 + 1] as u64;
         hashU64[i] = hashHigh << 32 | hashLow;
     }
-    let mut KU64: [u64; 80] = [0; 80];
-    for i in 0..80 {
-        let KHigh: u64 = K[i * 2] as u64;
-        let KLow: u64 = K[i * 2 + 1] as u64;
-        KU64[i] = KHigh << 32 | KLow;
-    }
+
     if nWordsReady > 0 {
         let mut offset = 0;
         while offset < nWordsReady {
-            doCryptBlock(dataWords, offset, &mut hashU64, &KU64);
+            doCryptBlock(dataWords, offset, &mut hashU64);
             offset += blockSize;
         }
     }
@@ -27,7 +25,8 @@ pub fn doCrypt(nWordsReady: u32, blockSize: u32, dataWords: &[u32], hash: &mut [
     }
 }
 
-fn doCryptBlock(data: &[u32], offsetU32: u32, hash: &mut [u64], K: &[u64]) {
+fn doCryptBlock(data: &[u32], offsetU32: u32, hash: &mut [u64]) {
+    let K = getK();
     let offset = offsetU32 as usize;
 
     // Working variables
@@ -48,13 +47,13 @@ fn doCryptBlock(data: &[u32], offsetU32: u32, hash: &mut [u64], K: &[u64]) {
             W[i] = W[i] << 32 | data[offset + i * 2 + 1] as u64;
         } else {
             let gamma0x = W[i - 15];
-            let gamma0  = ((gamma0x >> 1) | (gamma0x << 63)) ^ ((gamma0x >> 8) | (gamma0x << 56)) ^ (gamma0x >> 7);
+            let gamma0 = ((gamma0x >> 1) | (gamma0x << 63)) ^ ((gamma0x >> 8) | (gamma0x << 56)) ^ (gamma0x >> 7);
             let gamma1x = W[i - 2];
-            let gamma1  = ((gamma1x >> 19) | (gamma1x << 45)) ^ ((gamma1x << 3) | (gamma1x >> 61)) ^ (gamma1x >> 6);
+            let gamma1 = ((gamma1x >> 19) | (gamma1x << 45)) ^ ((gamma1x << 3) | (gamma1x >> 61)) ^ (gamma1x >> 6);
             W[i] = ((gamma0 as u128) + (W[i - 7] as u128) + (gamma1 as u128) + (W[i - 16] as u128)) as u64;
         }
 
-        let ch  = (e & f) ^ (!e & g);
+        let ch = (e & f) ^ (!e & g);
         let maj = (a & b) ^ (a & c) ^ (b & c);
 
         let sigma0 = ((a >> 28) | (a << 36)) ^ ((a << 30) | (a >> 34)) ^ ((a << 25) | (a >> 39));
