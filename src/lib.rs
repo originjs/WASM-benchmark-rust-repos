@@ -1,170 +1,183 @@
 mod utils;
 
-use std::ptr::null;
-use std::cmp;
 use wasm_bindgen::prelude::*;
 
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-extern crate serde_json;
-extern crate wasm_bindgen;
+struct State {
+    X: [u32; 8],
+    C: [u32; 8],
+    b: u32,
+}
 
 #[wasm_bindgen]
-extern "C" {}
-
-#[wasm_bindgen]
-pub fn md5Process(doFlush: u8, hashWords: &mut [u32], dataWords: &[u32], dataSigBytes: u32, blockSize: u32, minBufferSize: u32, T: &[u32]) -> u32 {
-    let blockSizeBytes = blockSize * 4;
-    let mut nBlocksReady: f32 = dataSigBytes as f32 / blockSizeBytes as f32;
-    if (doFlush > 0) {
-        nBlocksReady = nBlocksReady.ceil();
-    } else {
-        nBlocksReady = f32::max(nBlocksReady - minBufferSize as f32, 0_f32);
-    }
-
-    let nWordsReady = nBlocksReady as u32 * blockSize;
-    let nBytesReady = cmp::min(nWordsReady * 4, dataSigBytes);
-
+pub fn doProcess(
+    nWordsReady: usize,
+    blockSize: usize,
+    keyWords: &[u32],
+    iv: &[u32],
+    dataWords: &mut [u32],
+) {
+    let mut data: Vec<u32> = dataWords.to_vec();
+    let mut state = doReset(keyWords, iv);
+    // Process blocks
     if (nWordsReady > 0) {
         let mut offset = 0;
-        while (offset < nWordsReady) {
-            md5DoProcessBlock(dataWords, offset, hashWords, T);
+        while offset < nWordsReady {
+            doProcessBlock(dataWords, offset, &mut state);
             offset += blockSize;
         }
     }
-
-    nBytesReady
 }
 
-fn md5DoProcessBlock(originalM: &[u32], offsetU32: u32, hashWords: &mut [u32], T: &[u32]) {
-    let offset = offsetU32 as usize;
-    let mut M: [u32; 16] = [0_u32; 16];
-    for i in 0..16 {
-        // Shortcuts
-        let offset_i = offset + i;
+fn doReset(keyWords: &[u32], iv: &[u32]) -> State {
+    let mut state = State {
+        X: [0; 8],
+        C: [0; 8],
+        b: 0,
+    };
 
-        let M_offset_i = originalM[offset_i];
-
-        M[offset_i % 16] = (((M_offset_i << 8) | (M_offset_i >> 24)) & 0x00ff00ff) |
-            (((M_offset_i << 24) | (M_offset_i >> 8)) & 0xff00ff00);
+    let mut K: [u32; 4] = [0; 4];
+    // Swap endian
+    for i in 0..4 {
+        K[i] = (((keyWords[i] << 8) | (keyWords[i] >> 24)) & 0x00ff00ff)
+            | (((keyWords[i] << 24) | (keyWords[i] >> 8)) & 0xff00ff00);
     }
 
-    let mut a = hashWords[0];
-    let mut b = hashWords[1];
-    let mut c = hashWords[2];
-    let mut d = hashWords[3];
+    // Generate initial state values
+    state.X = [
+        K[0],
+        (K[3] << 16) | (K[2] >> 16),
+        K[1],
+        (K[0] << 16) | (K[3] >> 16),
+        K[2],
+        (K[1] << 16) | (K[0] >> 16),
+        K[3],
+        (K[2] << 16) | (K[1] >> 16),
+    ];
 
-    let M_offset_0 = M[0];
-    let M_offset_1 = M[1];
-    let M_offset_2 = M[2];
-    let M_offset_3 = M[3];
-    let M_offset_4 = M[4];
-    let M_offset_5 = M[5];
-    let M_offset_6 = M[6];
-    let M_offset_7 = M[7];
-    let M_offset_8 = M[8];
-    let M_offset_9 = M[9];
-    let M_offset_10 = M[10];
-    let M_offset_11 = M[11];
-    let M_offset_12 = M[12];
-    let M_offset_13 = M[13];
-    let M_offset_14 = M[14];
-    let M_offset_15 = M[15];
+    // Generate initial counter values
+    state.C = [
+        (K[2] << 16) | (K[2] >> 16),
+        (K[0] & 0xffff0000) | (K[1] & 0x0000ffff),
+        (K[3] << 16) | (K[3] >> 16),
+        (K[1] & 0xffff0000) | (K[2] & 0x0000ffff),
+        (K[0] << 16) | (K[0] >> 16),
+        (K[2] & 0xffff0000) | (K[3] & 0x0000ffff),
+        (K[1] << 16) | (K[1] >> 16),
+        (K[3] & 0xffff0000) | (K[0] & 0x0000ffff),
+    ];
 
-    a = FF(a, b, c, d, M_offset_0, 7, T[0]);
-    d = FF(d, a, b, c, M_offset_1, 12, T[1]);
-    c = FF(c, d, a, b, M_offset_2, 17, T[2]);
-    b = FF(b, c, d, a, M_offset_3, 22, T[3]);
-    a = FF(a, b, c, d, M_offset_4, 7, T[4]);
-    d = FF(d, a, b, c, M_offset_5, 12, T[5]);
-    c = FF(c, d, a, b, M_offset_6, 17, T[6]);
-    b = FF(b, c, d, a, M_offset_7, 22, T[7]);
-    a = FF(a, b, c, d, M_offset_8, 7, T[8]);
-    d = FF(d, a, b, c, M_offset_9, 12, T[9]);
-    c = FF(c, d, a, b, M_offset_10, 17, T[10]);
-    b = FF(b, c, d, a, M_offset_11, 22, T[11]);
-    a = FF(a, b, c, d, M_offset_12, 7, T[12]);
-    d = FF(d, a, b, c, M_offset_13, 12, T[13]);
-    c = FF(c, d, a, b, M_offset_14, 17, T[14]);
-    b = FF(b, c, d, a, M_offset_15, 22, T[15]);
+    // Carry bit
+    state.b = 0;
 
-    a = GG(a, b, c, d, M_offset_1, 5, T[16]);
-    d = GG(d, a, b, c, M_offset_6, 9, T[17]);
-    c = GG(c, d, a, b, M_offset_11, 14, T[18]);
-    b = GG(b, c, d, a, M_offset_0, 20, T[19]);
-    a = GG(a, b, c, d, M_offset_5, 5, T[20]);
-    d = GG(d, a, b, c, M_offset_10, 9, T[21]);
-    c = GG(c, d, a, b, M_offset_15, 14, T[22]);
-    b = GG(b, c, d, a, M_offset_4, 20, T[23]);
-    a = GG(a, b, c, d, M_offset_9, 5, T[24]);
-    d = GG(d, a, b, c, M_offset_14, 9, T[25]);
-    c = GG(c, d, a, b, M_offset_3, 14, T[26]);
-    b = GG(b, c, d, a, M_offset_8, 20, T[27]);
-    a = GG(a, b, c, d, M_offset_13, 5, T[28]);
-    d = GG(d, a, b, c, M_offset_2, 9, T[29]);
-    c = GG(c, d, a, b, M_offset_7, 14, T[30]);
-    b = GG(b, c, d, a, M_offset_12, 20, T[31]);
+    // Iterate the system four times
+    for i in 0..4 {
+        nextState(&mut state);
+    }
 
-    a = HH(a, b, c, d, M_offset_5, 4, T[32]);
-    d = HH(d, a, b, c, M_offset_8, 11, T[33]);
-    c = HH(c, d, a, b, M_offset_11, 16, T[34]);
-    b = HH(b, c, d, a, M_offset_14, 23, T[35]);
-    a = HH(a, b, c, d, M_offset_1, 4, T[36]);
-    d = HH(d, a, b, c, M_offset_4, 11, T[37]);
-    c = HH(c, d, a, b, M_offset_7, 16, T[38]);
-    b = HH(b, c, d, a, M_offset_10, 23, T[39]);
-    a = HH(a, b, c, d, M_offset_13, 4, T[40]);
-    d = HH(d, a, b, c, M_offset_0, 11, T[41]);
-    c = HH(c, d, a, b, M_offset_3, 16, T[42]);
-    b = HH(b, c, d, a, M_offset_6, 23, T[43]);
-    a = HH(a, b, c, d, M_offset_9, 4, T[44]);
-    d = HH(d, a, b, c, M_offset_12, 11, T[45]);
-    c = HH(c, d, a, b, M_offset_15, 16, T[46]);
-    b = HH(b, c, d, a, M_offset_2, 23, T[47]);
+    // Modify the counters
+    for i in 0..8 {
+        state.C[i] ^= state.X[(i + 4) & 7];
+    }
 
-    a = II(a, b, c, d, M_offset_0, 6, T[48]);
-    d = II(d, a, b, c, M_offset_7, 10, T[49]);
-    c = II(c, d, a, b, M_offset_14, 15, T[50]);
-    b = II(b, c, d, a, M_offset_5, 21, T[51]);
-    a = II(a, b, c, d, M_offset_12, 6, T[52]);
-    d = II(d, a, b, c, M_offset_3, 10, T[53]);
-    c = II(c, d, a, b, M_offset_10, 15, T[54]);
-    b = II(b, c, d, a, M_offset_1, 21, T[55]);
-    a = II(a, b, c, d, M_offset_8, 6, T[56]);
-    d = II(d, a, b, c, M_offset_15, 10, T[57]);
-    c = II(c, d, a, b, M_offset_6, 15, T[58]);
-    b = II(b, c, d, a, M_offset_13, 21, T[59]);
-    a = II(a, b, c, d, M_offset_4, 6, T[60]);
-    d = II(d, a, b, c, M_offset_11, 10, T[61]);
-    c = II(c, d, a, b, M_offset_2, 15, T[62]);
-    b = II(b, c, d, a, M_offset_9, 21, T[63]);
+    // IV setup
+    let IV_0 = iv[0];
+    let IV_1 = iv[1];
 
-    hashWords[0] = (hashWords[0] + a) | 0;
-    hashWords[1] = (hashWords[1] + b) | 0;
-    hashWords[2] = (hashWords[2] + c) | 0;
-    hashWords[3] = (hashWords[3] + d) | 0;
+    // Generate four subvectors
+    let i0 =
+        (((IV_0 << 8) | (IV_0 >> 24)) & 0x00ff00ff) | (((IV_0 << 24) | (IV_0 >> 8)) & 0xff00ff00);
+    let i2 =
+        (((IV_1 << 8) | (IV_1 >> 24)) & 0x00ff00ff) | (((IV_1 << 24) | (IV_1 >> 8)) & 0xff00ff00);
+    let i1 = (i0 >> 16) | (i2 & 0xffff0000);
+    let i3 = (i2 << 16) | (i0 & 0x0000ffff);
+
+    // Modify counter values
+    state.C[0] ^= i0;
+    state.C[1] ^= i1;
+    state.C[2] ^= i2;
+    state.C[3] ^= i3;
+    state.C[4] ^= i0;
+    state.C[5] ^= i1;
+    state.C[6] ^= i2;
+    state.C[7] ^= i3;
+
+    // Iterate the system four times
+    for i in 0..4 {
+        nextState(&mut state);
+    }
+
+    state
 }
 
-fn FF(a: u32, b: u32, c: u32, d: u32, x: u32, s: u32, t: u32) -> u32 {
-    let n: u32 = a + ((b & c) | (!b & d)) + x + t;
-    ((n << s) | (n >> (32 - s))) + b
+fn nextState(state: &mut State) {
+    // Shortcuts
+    let X = &mut state.X;
+    let C = &mut state.C;
+
+    let mut C_: [u32; 8] = [0; 8];
+    // Save old counter values
+    for i in 0..8 {
+        C_[i] = C[i];
+    }
+
+    // Calculate new counter values
+    C[0] = (C[0] + 0x4d34d34d + state.b) | 0;
+    C[1] = (C[1] + 0xd34d34d3 + (if (C[0] >> 0) < (C_[0] >> 0) { 1 } else { 0 })) | 0;
+    C[2] = (C[2] + 0x34d34d34 + (if (C[1] >> 0) < (C_[1] >> 0) { 1 } else { 0 })) | 0;
+    C[3] = (C[3] + 0x4d34d34d + (if (C[2] >> 0) < (C_[2] >> 0) { 1 } else { 0 })) | 0;
+    C[4] = (C[4] + 0xd34d34d3 + (if (C[3] >> 0) < (C_[3] >> 0) { 1 } else { 0 })) | 0;
+    C[5] = (C[5] + 0x34d34d34 + (if (C[4] >> 0) < (C_[4] >> 0) { 1 } else { 0 })) | 0;
+    C[6] = (C[6] + 0x4d34d34d + (if (C[5] >> 0) < (C_[5] >> 0) { 1 } else { 0 })) | 0;
+    C[7] = (C[7] + 0xd34d34d3 + (if (C[6] >> 0) < (C_[6] >> 0) { 1 } else { 0 })) | 0;
+    state.b = if (C[7] >> 0) < (C_[7] >> 0) { 1 } else { 0 };
+
+    let mut G: [u32; 8] = [0; 8];
+    // Calculate the g-values
+    for i in 0..8 {
+        let gx = X[i] + C[i];
+
+        // Construct high and low argument for squaring
+        let ga = gx & 0xffff;
+        let gb = gx >> 16;
+
+        // Calculate high and low result of squaring
+        let gh = ((((ga * ga) >> 17) + ga * gb) >> 15) + gb * gb;
+        let gl = (((gx & 0xffff0000) * gx) | 0) + (((gx & 0x0000ffff) * gx) | 0);
+
+        // High XOR low
+        G[i] = gh ^ gl;
+    }
+
+    // Calculate new state values
+    X[0] = (G[0] + ((G[7] << 16) | (G[7] >> 16)) + ((G[6] << 16) | (G[6] >> 16))) | 0;
+    X[1] = (G[1] + ((G[0] << 8) | (G[0] >> 24)) + G[7]) | 0;
+    X[2] = (G[2] + ((G[1] << 16) | (G[1] >> 16)) + ((G[0] << 16) | (G[0] >> 16))) | 0;
+    X[3] = (G[3] + ((G[2] << 8) | (G[2] >> 24)) + G[1]) | 0;
+    X[4] = (G[4] + ((G[3] << 16) | (G[3] >> 16)) + ((G[2] << 16) | (G[2] >> 16))) | 0;
+    X[5] = (G[5] + ((G[4] << 8) | (G[4] >> 24)) + G[3]) | 0;
+    X[6] = (G[6] + ((G[5] << 16) | (G[5] >> 16)) + ((G[4] << 16) | (G[4] >> 16))) | 0;
+    X[7] = (G[7] + ((G[6] << 8) | (G[6] >> 24)) + G[5]) | 0;
 }
 
-fn GG(a: u32, b: u32, c: u32, d: u32, x: u32, s: u32, t: u32) -> u32 {
-    let n: u32 = a + ((b & d) | (c & !d)) + x + t;
-    ((n << s) | (n >> (32 - s))) + b
-}
+fn doProcessBlock(dataWords: &mut [u32], offset: usize, state: &mut State) {
+    // Iterate the system
+    nextState(state);
 
-fn HH(a: u32, b: u32, c: u32, d: u32, x: u32, s: u32, t: u32) -> u32 {
-    let n: u32 = a + (b ^ c ^ d) + x + t;
-    ((n << s) | (n >> (32 - s))) + b
-}
+    let X = state.X;
 
-fn II(a: u32, b: u32, c: u32, d: u32, x: u32, s: u32, t: u32) -> u32 {
-    let n: u32 = a + (c ^ (b | !d)) + x + t;
-    ((n << s) | (n >> (32 - s))) + b
+    let mut S: [u32; 4] = [0; 4];
+    // Generate four keystream words
+    S[0] = X[0] ^ (X[5] >> 16) ^ (X[3] << 16);
+    S[1] = X[2] ^ (X[7] >> 16) ^ (X[5] << 16);
+    S[2] = X[4] ^ (X[1] >> 16) ^ (X[7] << 16);
+    S[3] = X[6] ^ (X[3] >> 16) ^ (X[1] << 16);
+
+    for i in 0..4 {
+        // Swap endian
+        S[i] = (((S[i] << 8) | (S[i] >> 24)) & 0x00ff00ff)
+            | (((S[i] << 24) | (S[i] >> 8)) & 0xff00ff00);
+
+        // Encrypt
+        dataWords[offset + i] ^= S[i];
+    }
 }
