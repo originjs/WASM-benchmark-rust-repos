@@ -80,30 +80,32 @@ fn doReset(keyWords: &[u32], iv: &[u32]) -> State {
     }
 
     // IV setup
-    let IV_0 = iv[0];
-    let IV_1 = iv[1];
-
-    // Generate four subvectors
-    let i0 =
-        (((IV_0 << 8) | (IV_0 >> 24)) & 0x00ff00ff) | (((IV_0 << 24) | (IV_0 >> 8)) & 0xff00ff00);
-    let i2 =
-        (((IV_1 << 8) | (IV_1 >> 24)) & 0x00ff00ff) | (((IV_1 << 24) | (IV_1 >> 8)) & 0xff00ff00);
-    let i1 = (i0 >> 16) | (i2 & 0xffff0000);
-    let i3 = (i2 << 16) | (i0 & 0x0000ffff);
-
-    // Modify counter values
-    state.C[0] ^= i0;
-    state.C[1] ^= i1;
-    state.C[2] ^= i2;
-    state.C[3] ^= i3;
-    state.C[4] ^= i0;
-    state.C[5] ^= i1;
-    state.C[6] ^= i2;
-    state.C[7] ^= i3;
-
-    // Iterate the system four times
-    for i in 0..4 {
-        nextState(&mut state);
+    if (iv.len() != 0) {
+        let IV_0 = iv[0];
+        let IV_1 = iv[1];
+    
+        // Generate four subvectors
+        let i0 =
+            (((IV_0 << 8) | (IV_0 >> 24)) & 0x00ff00ff) | (((IV_0 << 24) | (IV_0 >> 8)) & 0xff00ff00);
+        let i2 =
+            (((IV_1 << 8) | (IV_1 >> 24)) & 0x00ff00ff) | (((IV_1 << 24) | (IV_1 >> 8)) & 0xff00ff00);
+        let i1 = (i0 >> 16) | (i2 & 0xffff0000);
+        let i3 = (i2 << 16) | (i0 & 0x0000ffff);
+    
+        // Modify counter values
+        state.C[0] ^= i0;
+        state.C[1] ^= i1;
+        state.C[2] ^= i2;
+        state.C[3] ^= i3;
+        state.C[4] ^= i0;
+        state.C[5] ^= i1;
+        state.C[6] ^= i2;
+        state.C[7] ^= i3;
+    
+        // Iterate the system four times
+        for i in 0..4 {
+            nextState(&mut state);
+        }
     }
 
     state
