@@ -16,7 +16,6 @@ pub fn doProcess(
     iv: &[u32],
     dataWords: &mut [u32],
 ) {
-    let mut data: Vec<u32> = dataWords.to_vec();
     let mut state = doReset(keyWords, iv);
     // Process blocks
     if (nWordsReady > 0) {
@@ -83,15 +82,15 @@ fn doReset(keyWords: &[u32], iv: &[u32]) -> State {
     if (iv.len() != 0) {
         let IV_0 = iv[0];
         let IV_1 = iv[1];
-    
+
         // Generate four subvectors
-        let i0 =
-            (((IV_0 << 8) | (IV_0 >> 24)) & 0x00ff00ff) | (((IV_0 << 24) | (IV_0 >> 8)) & 0xff00ff00);
-        let i2 =
-            (((IV_1 << 8) | (IV_1 >> 24)) & 0x00ff00ff) | (((IV_1 << 24) | (IV_1 >> 8)) & 0xff00ff00);
+        let i0 = (((IV_0 << 8) | (IV_0 >> 24)) & 0x00ff00ff)
+            | (((IV_0 << 24) | (IV_0 >> 8)) & 0xff00ff00);
+        let i2 = (((IV_1 << 8) | (IV_1 >> 24)) & 0x00ff00ff)
+            | (((IV_1 << 24) | (IV_1 >> 8)) & 0xff00ff00);
         let i1 = (i0 >> 16) | (i2 & 0xffff0000);
         let i3 = (i2 << 16) | (i0 & 0x0000ffff);
-    
+
         // Modify counter values
         state.C[0] ^= i0;
         state.C[1] ^= i1;
@@ -101,7 +100,7 @@ fn doReset(keyWords: &[u32], iv: &[u32]) -> State {
         state.C[5] ^= i1;
         state.C[6] ^= i2;
         state.C[7] ^= i3;
-    
+
         // Iterate the system four times
         for i in 0..4 {
             nextState(&mut state);
@@ -124,14 +123,14 @@ fn nextState(state: &mut State) {
 
     // Calculate new counter values
     C[0] = (C[0] + 0x4d34d34d + state.b) | 0;
-    C[1] = (C[1] + 0xd34d34d3 + (if (C[0] >> 0) < (C_[0] >> 0) { 1 } else { 0 })) | 0;
-    C[2] = (C[2] + 0x34d34d34 + (if (C[1] >> 0) < (C_[1] >> 0) { 1 } else { 0 })) | 0;
-    C[3] = (C[3] + 0x4d34d34d + (if (C[2] >> 0) < (C_[2] >> 0) { 1 } else { 0 })) | 0;
-    C[4] = (C[4] + 0xd34d34d3 + (if (C[3] >> 0) < (C_[3] >> 0) { 1 } else { 0 })) | 0;
-    C[5] = (C[5] + 0x34d34d34 + (if (C[4] >> 0) < (C_[4] >> 0) { 1 } else { 0 })) | 0;
-    C[6] = (C[6] + 0x4d34d34d + (if (C[5] >> 0) < (C_[5] >> 0) { 1 } else { 0 })) | 0;
-    C[7] = (C[7] + 0xd34d34d3 + (if (C[6] >> 0) < (C_[6] >> 0) { 1 } else { 0 })) | 0;
-    state.b = if (C[7] >> 0) < (C_[7] >> 0) { 1 } else { 0 };
+    C[1] = (C[1] + 0xd34d34d3 + (if C[0] < C_[0] { 1 } else { 0 })) | 0;
+    C[2] = (C[2] + 0x34d34d34 + (if C[1] < C_[1] { 1 } else { 0 })) | 0;
+    C[3] = (C[3] + 0x4d34d34d + (if C[2] < C_[2] { 1 } else { 0 })) | 0;
+    C[4] = (C[4] + 0xd34d34d3 + (if C[3] < C_[3] { 1 } else { 0 })) | 0;
+    C[5] = (C[5] + 0x34d34d34 + (if C[4] < C_[4] { 1 } else { 0 })) | 0;
+    C[6] = (C[6] + 0x4d34d34d + (if C[5] < C_[5] { 1 } else { 0 })) | 0;
+    C[7] = (C[7] + 0xd34d34d3 + (if C[6] < C_[6] { 1 } else { 0 })) | 0;
+    state.b = if C[7] < C_[7] { 1 } else { 0 };
 
     let mut G: [u32; 8] = [0; 8];
     // Calculate the g-values
