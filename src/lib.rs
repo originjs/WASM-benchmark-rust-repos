@@ -2,119 +2,28 @@ mod utils;
 
 use wasm_bindgen::prelude::*;
 
-struct State {
-    X: [u32; 8],
-    C: [u32; 8],
-    b: u32,
-}
-
 #[wasm_bindgen]
 pub fn doProcess(
     nWordsReady: usize,
     blockSize: usize,
-    keyWords: &[u32],
-    iv: &[u32],
     dataWords: &mut [u32],
-) {
-    let mut state = doReset(keyWords, iv);
+    X: &mut [u32],
+    C: &mut [u32],
+    mut b: u32,
+) -> u32 {
     // Process blocks
-    if (nWordsReady > 0) {
+    if nWordsReady > 0 {
         let mut offset = 0;
         while offset < nWordsReady {
-            doProcessBlock(dataWords, offset, &mut state);
+            b = doProcessBlock(dataWords, offset, X, C, b);
             offset += blockSize;
         }
     }
+
+    b
 }
 
-fn doReset(keyWords: &[u32], iv: &[u32]) -> State {
-    let mut state = State {
-        X: [0; 8],
-        C: [0; 8],
-        b: 0,
-    };
-
-    let mut K: [u32; 4] = [0; 4];
-    // Swap endian
-    for i in 0..4 {
-        K[i] = (((keyWords[i] << 8) | (keyWords[i] >> 24)) & 0x00ff00ff)
-            | (((keyWords[i] << 24) | (keyWords[i] >> 8)) & 0xff00ff00);
-    }
-
-    // Generate initial state values
-    state.X = [
-        K[0],
-        (K[3] << 16) | (K[2] >> 16),
-        K[1],
-        (K[0] << 16) | (K[3] >> 16),
-        K[2],
-        (K[1] << 16) | (K[0] >> 16),
-        K[3],
-        (K[2] << 16) | (K[1] >> 16),
-    ];
-
-    // Generate initial counter values
-    state.C = [
-        (K[2] << 16) | (K[2] >> 16),
-        (K[0] & 0xffff0000) | (K[1] & 0x0000ffff),
-        (K[3] << 16) | (K[3] >> 16),
-        (K[1] & 0xffff0000) | (K[2] & 0x0000ffff),
-        (K[0] << 16) | (K[0] >> 16),
-        (K[2] & 0xffff0000) | (K[3] & 0x0000ffff),
-        (K[1] << 16) | (K[1] >> 16),
-        (K[3] & 0xffff0000) | (K[0] & 0x0000ffff),
-    ];
-
-    // Carry bit
-    state.b = 0;
-
-    // Iterate the system four times
-    for i in 0..4 {
-        nextState(&mut state);
-    }
-
-    // Modify the counters
-    for i in 0..8 {
-        state.C[i] ^= state.X[(i + 4) & 7];
-    }
-
-    // IV setup
-    if (iv.len() != 0) {
-        let IV_0 = iv[0];
-        let IV_1 = iv[1];
-
-        // Generate four subvectors
-        let i0 = (((IV_0 << 8) | (IV_0 >> 24)) & 0x00ff00ff)
-            | (((IV_0 << 24) | (IV_0 >> 8)) & 0xff00ff00);
-        let i2 = (((IV_1 << 8) | (IV_1 >> 24)) & 0x00ff00ff)
-            | (((IV_1 << 24) | (IV_1 >> 8)) & 0xff00ff00);
-        let i1 = (i0 >> 16) | (i2 & 0xffff0000);
-        let i3 = (i2 << 16) | (i0 & 0x0000ffff);
-
-        // Modify counter values
-        state.C[0] ^= i0;
-        state.C[1] ^= i1;
-        state.C[2] ^= i2;
-        state.C[3] ^= i3;
-        state.C[4] ^= i0;
-        state.C[5] ^= i1;
-        state.C[6] ^= i2;
-        state.C[7] ^= i3;
-
-        // Iterate the system four times
-        for i in 0..4 {
-            nextState(&mut state);
-        }
-    }
-
-    state
-}
-
-fn nextState(state: &mut State) {
-    // Shortcuts
-    let X = &mut state.X;
-    let C = &mut state.C;
-
+fn nextState(X: &mut [u32], C: &mut [u32], mut b: u32) -> u32 {
     let mut C_: [u32; 8] = [0; 8];
     // Save old counter values
     for i in 0..8 {
@@ -122,7 +31,7 @@ fn nextState(state: &mut State) {
     }
 
     // Calculate new counter values
-    C[0] = (C[0] + 0x4d34d34d + state.b) | 0;
+    C[0] = (C[0] + 0x4d34d34d + b) | 0;
     C[1] = (C[1] + 0xd34d34d3 + (if C[0] < C_[0] { 1 } else { 0 })) | 0;
     C[2] = (C[2] + 0x34d34d34 + (if C[1] < C_[1] { 1 } else { 0 })) | 0;
     C[3] = (C[3] + 0x4d34d34d + (if C[2] < C_[2] { 1 } else { 0 })) | 0;
@@ -130,7 +39,7 @@ fn nextState(state: &mut State) {
     C[5] = (C[5] + 0x34d34d34 + (if C[4] < C_[4] { 1 } else { 0 })) | 0;
     C[6] = (C[6] + 0x4d34d34d + (if C[5] < C_[5] { 1 } else { 0 })) | 0;
     C[7] = (C[7] + 0xd34d34d3 + (if C[6] < C_[6] { 1 } else { 0 })) | 0;
-    state.b = if C[7] < C_[7] { 1 } else { 0 };
+    b = if C[7] < C_[7] { 1 } else { 0 };
 
     let mut G: [u32; 8] = [0; 8];
     // Calculate the g-values
@@ -158,13 +67,19 @@ fn nextState(state: &mut State) {
     X[5] = (G[5] + ((G[4] << 8) | (G[4] >> 24)) + G[3]) | 0;
     X[6] = (G[6] + ((G[5] << 16) | (G[5] >> 16)) + ((G[4] << 16) | (G[4] >> 16))) | 0;
     X[7] = (G[7] + ((G[6] << 8) | (G[6] >> 24)) + G[5]) | 0;
+
+    b
 }
 
-fn doProcessBlock(dataWords: &mut [u32], offset: usize, state: &mut State) {
+fn doProcessBlock(
+    dataWords: &mut [u32],
+    offset: usize,
+    X: &mut [u32],
+    C: &mut [u32],
+    mut b: u32,
+) -> u32 {
     // Iterate the system
-    nextState(state);
-
-    let X = state.X;
+    b = nextState(X, C, b);
 
     let mut S: [u32; 4] = [0; 4];
     // Generate four keystream words
@@ -181,4 +96,6 @@ fn doProcessBlock(dataWords: &mut [u32], offset: usize, state: &mut State) {
         // Encrypt
         dataWords[offset + i] ^= S[i];
     }
+
+    b
 }
