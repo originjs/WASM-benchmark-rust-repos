@@ -12,10 +12,11 @@ pub fn doEncrypt(
     iv: &[u32],
     dataWords: &mut [u32],
     keyWords: &[u32],
-) {
+) -> Vec<u32> {
     let subKeys = getSubKeys(keyWords);
     let SBOX_P = getSboxP();
     let SBOX_MASK = getSboxMask();
+    let mut process: Vec<u32> = Vec::new();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
@@ -27,6 +28,7 @@ pub fn doEncrypt(
                     prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ecb" => {
                 while offset < nWordsReady {
@@ -43,6 +45,7 @@ pub fn doEncrypt(
                     prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ofb" => {
                 let mut keystream = iv[0..blockSize].to_vec();
@@ -51,6 +54,7 @@ pub fn doEncrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = keystream;
             }
             "ctr" => {
                 let mut counter = iv[0..blockSize].to_vec();
@@ -63,10 +67,13 @@ pub fn doEncrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = counter;
             }
             _ => {}
         }
     }
+
+    process
 }
 
 #[wasm_bindgen]
@@ -77,11 +84,12 @@ pub fn doDecrypt(
     iv: &[u32],
     dataWords: &mut [u32],
     keyWords: &[u32],
-) {
+) -> Vec<u32> {
     let subKeys = getSubKeys(keyWords);
     let invSubKeys = getInvSubKeys(&subKeys);
     let SBOX_P = getSboxP();
     let SBOX_MASK = getSboxMask();
+    let mut process: Vec<u32> = Vec::new();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
@@ -94,6 +102,7 @@ pub fn doDecrypt(
                     prevBlock = thisBlock;
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ecb" => {
                 while offset < nWordsReady {
@@ -111,6 +120,7 @@ pub fn doDecrypt(
                     prevBlock = thisBlock;
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ofb" => {
                 let mut keystream = iv[0..blockSize].to_vec();
@@ -119,6 +129,7 @@ pub fn doDecrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = keystream;
             }
             "ctr" => {
                 let mut counter = iv[0..blockSize].to_vec();
@@ -131,10 +142,13 @@ pub fn doDecrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = counter;
             }
             _ => {}
         }
     }
+
+    process
 }
 
 #[wasm_bindgen]
@@ -147,13 +161,14 @@ pub fn tripleEncrypt(
     keyWords1: &[u32],
     keyWords2: &[u32],
     keyWords3: &[u32],
-) {
+) -> Vec<u32> {
     let subKeys1 = getSubKeys(keyWords1);
     let subKeys2 = getSubKeys(keyWords2);
     let subKeys3 = getSubKeys(keyWords3);
     let invSubKeys2 = getInvSubKeys(&subKeys2);
     let SBOX_P = getSboxP();
     let SBOX_MASK = getSboxMask();
+    let mut process: Vec<u32> = Vec::new();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
@@ -167,6 +182,7 @@ pub fn tripleEncrypt(
                     prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ecb" => {
                 while offset < nWordsReady {
@@ -187,6 +203,7 @@ pub fn tripleEncrypt(
                     prevBlock = dataWords[offset..offset + blockSize].to_vec();
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ofb" => {
                 let mut keystream = iv[0..blockSize].to_vec();
@@ -197,6 +214,7 @@ pub fn tripleEncrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = keystream;
             }
             "ctr" => {
                 let mut counter = iv[0..blockSize].to_vec();
@@ -211,10 +229,13 @@ pub fn tripleEncrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = counter;
             }
             _ => {}
         }
     }
+
+    process
 }
 
 #[wasm_bindgen]
@@ -227,7 +248,7 @@ pub fn tripleDecrypt(
     keyWords1: &[u32],
     keyWords2: &[u32],
     keyWords3: &[u32],
-) {
+) -> Vec<u32> {
     let subKeys1 = getSubKeys(keyWords1);
     let subKeys2 = getSubKeys(keyWords2);
     let subKeys3 = getSubKeys(keyWords3);
@@ -236,6 +257,7 @@ pub fn tripleDecrypt(
     let invSubKeys3 = getInvSubKeys(&subKeys3);
     let SBOX_P = getSboxP();
     let SBOX_MASK = getSboxMask();
+    let mut process: Vec<u32> = Vec::new();
     if nWordsReady > 0 {
         let mut offset: usize = 0;
         match mode.to_lowercase().as_str() {
@@ -250,6 +272,7 @@ pub fn tripleDecrypt(
                     prevBlock = thisBlock;
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ecb" => {
                 while offset < nWordsReady {
@@ -271,6 +294,7 @@ pub fn tripleDecrypt(
                     prevBlock = thisBlock;
                     offset += blockSize;
                 }
+                process = prevBlock;
             }
             "ofb" => {
                 let mut keystream = iv[0..blockSize].to_vec();
@@ -281,6 +305,7 @@ pub fn tripleDecrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = keystream;
             }
             "ctr" => {
                 let mut counter = iv[0..blockSize].to_vec();
@@ -295,10 +320,13 @@ pub fn tripleDecrypt(
                     xorBlock(blockSize, keystream.to_owned(), dataWords, offset);
                     offset += blockSize;
                 }
+                process = counter;
             }
             _ => {}
         }
     }
+
+    process
 }
 
 fn xorBlock(blockSize: usize, block: Vec<u32>, words: &mut [u32], offset: usize) {
