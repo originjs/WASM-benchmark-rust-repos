@@ -19,6 +19,11 @@ pub fn doCrypt(doFlush: u8, dataWords: &[u32], dataSigBytes: u32, blockSize: u32
     let nWordsReady = nBlocksReady as u32 * blockSize;
 
     let mut state: [X64Word; 25] = [X64Word { high: 0, low: 0 }; 25];
+    for i in 0..25 {
+        state[i].high = stateData[i * 2];
+        state[i].low = stateData[i * 2 + 1];
+    }
+
     let mut T: [X64Word; 25] = [X64Word { high: 0, low: 0 }; 25];
 
     let mut i: usize = 0;
