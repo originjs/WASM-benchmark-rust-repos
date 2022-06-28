@@ -1,7 +1,7 @@
 [package]
-name = "rabbit"
+name = "rsa_rust"
 version = "0.1.0"
-authors = ["Alanscut <wp_scut@163.com>"]
+authors = ["Carrick <xck7k7@gmail.com>"]
 edition = "2018"
 
 [lib]
@@ -12,6 +12,19 @@ default = ["console_error_panic_hook"]
 
 [dependencies]
 wasm-bindgen = "0.2.63"
+sha2 = "0.10.2"
+rsa = "0.6.1"
+der = "0.5.0"
+base64 = "0.13.0"
+
+rand = "0.8.4"
+js-sys = "0.3.58"
+serde-wasm-bindgen = "0.4.3"
+getrandom = { version = "0.2.7", features = ["js"] }
+
+#[dependencies.web-sys]
+#version = "0.3"
+#features = ["console"]
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
