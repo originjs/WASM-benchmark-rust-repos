@@ -67,7 +67,7 @@ export class RSAAlgo {
      */
     decrypt(msgEncrypted, padding = 'OAEP') {
         this.errrorIfNoPrivateInstance();
-        return this.RsaPrivate.decrypt(msgEncryptedm, padding)
+        return this.RsaPrivate.decrypt(msgEncrypted, padding);
     }
 
     // TODO: only support Uint8Array for now. Consider adding support for string(base64)
@@ -94,7 +94,7 @@ export class RSAAlgo {
     }
 
     generateKeyFile(keyType = 'pairs', fileFmt = 'pem', fileName = 'key', dir = './keys') {
-        errorIfInBrowser();
+        this.errorIfInBrowser();
         switch (keyType) {
             case "pairs":
                 this.generateKeyFile("private", fileFmt, fileName, dir);
@@ -109,7 +109,7 @@ export class RSAAlgo {
                 fileName = fileName == "key" ? "pubkey" : fileName;
                 break;
             default:
-                throw TypeError("wrong key type provided. Should be 'pairs', 'private' or 'public'")
+                throw TypeError("wrong key type provided. Should be 'pairs', 'private' or 'public'");
         }
 
         let keyPath = `${dir}/${fileName}.${fileFmt}`;
@@ -130,10 +130,10 @@ export class RSAAlgo {
         // write key file
         fs.writeFile(keyPath, keyContent, err => {
             if (err) {
-                throw error;
+                throw err;
             }
             console.log(`Successfully generated private key file at ${keyPath}`);
-        })
+        });
     }
 
     /**
@@ -142,7 +142,7 @@ export class RSAAlgo {
      */
     // TODO: unused
     getKeyType() {
-        return !!RsaPrivate ? "private" : "public";
+        return RsaPrivate ? "private" : "public";
     }
 
     /**
